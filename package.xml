@@ -1,0 +1,22 @@
+<package>
+  <name>screenrun</name>
+  <version>1.0.0</version>
+  <description>
+      screenrun is a small tool that pushes commands into a screen window.
+      Use \015 after a command for ENTER, i.e. executing it.
+  </description>
+  <author email="c.dornhege@gmail.com">Christian Dornhege</author>
+  <maintainer email="c.dornhege@gmail.com">Christian Dornhege</maintainer>
+  <license>BSD</license>
+
+  <url type="website">http://ros.org/wiki/screenrun</url>
+  <url type="repository">https://github.com/dornhege/screenrun</url>
+  <url type="bugtracker">https://github.com/dornhege/screenrun/issues</url>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <run_depend>roscpp</run_depend>
+
+</package>
+
+

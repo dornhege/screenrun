@@ -1,0 +1,9 @@
+-
+    name: planner
+    commands:
+        - roscd tidyup_grasp_actions\015
+        - roslaunch tidyup_grasp_actions continual-planning-tidyup-grasp-tuck.launch 
+-
+    name: dashboard
+    commands:
+        - rosrun pr2_dashboard pr2_dashboard\015
