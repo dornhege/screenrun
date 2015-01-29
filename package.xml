@@ -1,6 +1,6 @@
 <package>
   <name>screenrun</name>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
   <description>
       screenrun is a small tool that pushes commands into a screen window.
       Use \015 after a command for ENTER, i.e. executing it.
