@@ -108,19 +108,29 @@ bool screenRunning()
     return false;
 }
 
+bool byobu_exists()
+{
+    int ret = system("which byobu");
+    return ret == 0;
+}
+
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "screenrun");
 
     if(argc > 1) {
         if(strcmp(argv[1], "b") == 0) {
-            ROS_INFO("Using byobu for screen.");
-            g_screen_cmd = "byobu";
+            if(!byobu_exists()) {
+                ROS_ERROR("Requested byobu for screen, but cannot find byobu executable. Install byobu for this. Falling back to screen for now.");
+            } else {
+                ROS_INFO("Using byobu for screen.");
+                g_screen_cmd = "byobu";
+            }
         }
     }
 
     ros::NodeHandle nh;
-    
+
     if(!load())
         return 1;
 
