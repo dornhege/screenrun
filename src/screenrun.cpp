@@ -110,7 +110,7 @@ bool screenRunning()
 
 bool byobu_exists()
 {
-    int ret = system("which byobu");
+    int ret = system("which byobu > /dev/null");
     return ret == 0;
 }
 
