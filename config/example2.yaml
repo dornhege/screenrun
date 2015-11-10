@@ -1,0 +1,13 @@
+-
+    name: yo
+    commands:
+        - echo yo\015
+-
+    name: yo2
+    commands:
+        - echo yoyo
+-
+    name: yo3
+    commands:
+        - echo yoyoyo\015
+        - echo oy

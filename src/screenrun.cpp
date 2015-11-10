@@ -1,4 +1,5 @@
 #include <ros/ros.h>
+#include <sys/select.h>
 #include <stdio.h>
 #include <dirent.h>
 #include <stdlib.h>
@@ -6,6 +7,13 @@
 #include <string>
 using namespace std;
 
+enum MODE
+{
+    MODE_SCREEN,
+    MODE_X,
+};
+
+enum MODE g_mode = MODE_SCREEN;
 string g_screen_cmd = "screen";
 
 bool executeCmd(const string & cmd)
@@ -13,6 +21,34 @@ bool executeCmd(const string & cmd)
     int ret = system(cmd.c_str());
     if(ret != 0) {
         perror("executeCmd");
+        ROS_ERROR("Command \"%s\" returned %d", cmd.c_str(), ret);
+        return false;
+    }
+    return true;
+}
+
+bool queryCmd(const string & cmd, string & result)
+{
+    FILE* p = popen(cmd.c_str(), "r");
+    if(!p)
+        return false;
+    // read pipe
+    char buf[1024];
+    char* rr = fgets(buf, 1023, p);
+    if(rr == NULL) {
+        ROS_ERROR("Comamnd \"%s\" read from pipe failed.", cmd.c_str());
+        return false;
+    }
+    result = buf;
+    if(!result.empty()) {
+        if(result[result.size() - 1] == '\n') {
+            result = result.substr(0, result.size() - 1);
+        }
+    }
+
+    int ret = pclose(p);
+    if(ret != 0) {
+        perror("queryCmd");
         ROS_ERROR("Command \"%s\" returned %d", cmd.c_str(), ret);
         return false;
     }
@@ -34,6 +70,34 @@ class ProgramEntry
                 if(!executeCmd(g_screen_cmd + " -p '" + name + "' -S ros -X eval 'stuff \"" + *it + "\"'"))
                     return;
             }
+        }
+
+        // TODO handle \015
+        // handle params (sleep delay keys for title/tab)
+        void pushToXWindow(const std::string & wid) {
+            string cmd = "xdotool ";
+            if(!executeCmd(cmd + "windowfocus " + wid))
+                return;
+            if(!executeCmd(cmd + "key --clearmodifiers ctrl+shift+a"))
+                return;
+            if(!executeCmd(cmd + "sleep 2"))
+                return;
+            if(!executeCmd(cmd + "key ctrl+shift+t"))
+                return;
+            if(!executeCmd(cmd + "type " + name))
+                return;
+            if(!executeCmd(cmd + "key Return"))
+                return;
+            if(!executeCmd(cmd + "sleep 1"))
+                return;
+            // TODO
+            if(!executeCmd(cmd + "type --delay 1 --clearmodifiers \"" + commands.front() + "\""))
+                return;
+            if(!executeCmd(cmd + "sleep 1"))
+                return;
+            cmd = "wmctrl ";
+            if(!executeCmd(cmd + "-i -a " + wid))
+                return;
         }
 };
 
@@ -108,9 +172,10 @@ bool screenRunning()
     return false;
 }
 
-bool byobu_exists()
+bool command_exists(const std::string & cmd)
 {
-    int ret = system("which byobu > /dev/null");
+    std::string query = std::string("which ") + cmd + " > /dev/null";
+    int ret = system(query.c_str());
     return ret == 0;
 }
 
@@ -120,12 +185,18 @@ int main(int argc, char** argv)
 
     if(argc > 1) {
         if(strcmp(argv[1], "b") == 0) {
-            if(!byobu_exists()) {
+            if(!command_exists("byobu")) {
                 ROS_ERROR("Requested byobu for screen, but cannot find byobu executable. Install byobu for this. Falling back to screen for now.");
             } else {
                 ROS_INFO("Using byobu for screen.");
                 g_screen_cmd = "byobu";
             }
+        } else if(strcmp(argv[1], "x") == 0) {
+            if(!command_exists("xdotool") || !command_exists("wmctrl")) {
+                ROS_FATAL("X Mode requested, but either 'xdotool' or 'wmctrl' are not installed.");
+                return 1;
+            }
+            g_mode = MODE_X;
         }
     }
 
@@ -134,19 +205,34 @@ int main(int argc, char** argv)
     if(!load())
         return 1;
 
-    if(screenRunning()) {
-        ROS_WARN("Screen \"ros\" already running, reusing this session");
-    } else {
-        ROS_INFO("Creating screen \"ros\"");
-        if(!executeCmd(g_screen_cmd + " -S ros -d -m")) {
-            ROS_FATAL("failed");
+    std::string wid;
+    if(g_mode == MODE_SCREEN) {
+        if(screenRunning()) {
+            ROS_WARN("Screen \"ros\" already running, reusing this session");
+        } else {
+            ROS_INFO("Creating screen \"ros\"");
+            if(!executeCmd(g_screen_cmd + " -S ros -d -m")) {
+                ROS_FATAL("failed");
+                return 1;
+            }
+        }
+    } else if(g_mode == MODE_X) {
+        // get the active window id
+        std::string cmd = "xprop -root | grep \"_NET_ACTIVE_WINDOW(WINDOW)\"| awk '{print $5}'";
+        if(!queryCmd(cmd, wid)) {
+            ROS_FATAL("wid query failed.");
             return 1;
         }
+        printf("%s\n", wid.c_str());
     }
 
     for(vector<ProgramEntry>::iterator it = programs.begin(); it != programs.end(); it++) {
-        it->pushToScreen();
+        if(g_mode == MODE_SCREEN)
+            it->pushToScreen();
+        else if(g_mode == MODE_X)
+            it->pushToXWindow(wid);
     }
 
     return 0;
 }
+
