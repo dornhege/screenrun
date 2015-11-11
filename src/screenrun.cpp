@@ -25,14 +25,18 @@ struct Params
     double sleepTabTitle;
     double sleepCommand;
 
-    void load() {
-        // TODO change defaults to gnome terminal defaults
+    bool load() {
         ros::NodeHandle nhPriv("~");
-        nhPriv.param("key_new_tab", keyNewTab, std::string("ctrl+shift+a"));
+        nhPriv.param("key_new_tab", keyNewTab, std::string("ctrl+shift+t"));
         nhPriv.param("sleep_new_tab", sleepNewTab, 2.0);
-        nhPriv.param("key_tab_title", keyTabTitle, std::string("ctrl+shift+t"));
+        nhPriv.param("key_tab_title", keyTabTitle, std::string(""));
         nhPriv.param("sleep_tab_title", sleepTabTitle, 1.0);
         nhPriv.param("sleep_command", sleepCommand, 1.0);
+        if(keyNewTab.empty()) {
+            ROS_FATAL("~key_new_tab param was empty.");
+            return false;
+        }
+        return true;
     }
 };
 Params g_params;
@@ -126,14 +130,16 @@ class ProgramEntry
             if(!executeCmd(cmd + "sleep " + toString(g_params.sleepNewTab)))
                 return;
             // set tab title
-            if(!executeCmd(cmd + "key " + g_params.keyTabTitle))
-                return;
-            if(!executeCmd(cmd + "type " + name))
-                return;
-            if(!executeCmd(cmd + "key Return"))
-                return;
-            if(!executeCmd(cmd + "sleep " + toString(g_params.sleepTabTitle)))
-                return;
+            if(!g_params.keyTabTitle.empty()) {
+                if(!executeCmd(cmd + "key " + g_params.keyTabTitle))
+                    return;
+                if(!executeCmd(cmd + "type " + name))
+                    return;
+                if(!executeCmd(cmd + "key Return"))
+                    return;
+                if(!executeCmd(cmd + "sleep " + toString(g_params.sleepTabTitle)))
+                    return;
+            }
             // enter commands into tab
             for(vector<string>::iterator it = commands.begin(); it != commands.end(); it++) {
                 std::string pushCmd = *it;
@@ -276,7 +282,8 @@ int main(int argc, char** argv)
             return 1;
         }
         printf("%s\n", wid.c_str());
-        g_params.load();
+        if(!g_params.load())
+            return 1;
     }
 
     for(vector<ProgramEntry>::iterator it = programs.begin(); it != programs.end(); it++) {

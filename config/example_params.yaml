@@ -1,0 +1,5 @@
+key_new_tab: "ctrl+shift+a"
+sleep_new_tab: 1.5
+key_tab_title: "ctrl+shift+t"
+sleep_tab_title: 0.5
+sleep_command: 0.5
