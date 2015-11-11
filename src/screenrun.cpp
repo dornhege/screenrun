@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <vector>
 #include <string>
+#include <sstream>
 using namespace std;
 
 enum MODE
@@ -15,6 +16,26 @@ enum MODE
 
 enum MODE g_mode = MODE_SCREEN;
 string g_screen_cmd = "screen";
+
+struct Params
+{
+    std::string keyNewTab;
+    double sleepNewTab;
+    std::string keyTabTitle;
+    double sleepTabTitle;
+    double sleepCommand;
+
+    void load() {
+        // TODO change defaults to gnome terminal defaults
+        ros::NodeHandle nhPriv("~");
+        nhPriv.param("key_new_tab", keyNewTab, std::string("ctrl+shift+a"));
+        nhPriv.param("sleep_new_tab", sleepNewTab, 2.0);
+        nhPriv.param("key_tab_title", keyTabTitle, std::string("ctrl+shift+t"));
+        nhPriv.param("sleep_tab_title", sleepTabTitle, 1.0);
+        nhPriv.param("sleep_command", sleepCommand, 1.0);
+    }
+};
+Params g_params;
 
 bool executeCmd(const string & cmd)
 {
@@ -72,29 +93,60 @@ class ProgramEntry
             }
         }
 
-        // TODO handle \015
-        // handle params (sleep delay keys for title/tab)
+        /// Commands for screen might be 'do_stuff\015', where screen interprets the \015 as return.
+        /// For X Windows, we need this information explicitly.
+        /** 
+         *  This functions removes a \015 appendix, if it was there and returns true in that case,
+         *  false otherwise.
+         */
+        bool filterCmdReturn(std::string & cmd) {
+            if(cmd.length() < 4)
+                return false;
+            if(cmd.substr(cmd.length() - 4) == "\\015") {
+                cmd = cmd.substr(0, cmd.length() - 4);
+                return true;
+            }
+            return false;
+        }
+
+        std::string toString(double d) {
+            std::stringstream ss;
+            ss << d;
+            return ss.str();
+        }
+
         void pushToXWindow(const std::string & wid) {
+            ROS_INFO("Creating window/tab for \"%s\"", name.c_str());
             string cmd = "xdotool ";
             if(!executeCmd(cmd + "windowfocus " + wid))
                 return;
-            if(!executeCmd(cmd + "key --clearmodifiers ctrl+shift+a"))
+            // new tab
+            if(!executeCmd(cmd + "key --clearmodifiers " + g_params.keyNewTab))
                 return;
-            if(!executeCmd(cmd + "sleep 2"))
+            if(!executeCmd(cmd + "sleep " + toString(g_params.sleepNewTab)))
                 return;
-            if(!executeCmd(cmd + "key ctrl+shift+t"))
+            // set tab title
+            if(!executeCmd(cmd + "key " + g_params.keyTabTitle))
                 return;
             if(!executeCmd(cmd + "type " + name))
                 return;
             if(!executeCmd(cmd + "key Return"))
                 return;
-            if(!executeCmd(cmd + "sleep 1"))
+            if(!executeCmd(cmd + "sleep " + toString(g_params.sleepTabTitle)))
                 return;
-            // TODO
-            if(!executeCmd(cmd + "type --delay 1 --clearmodifiers \"" + commands.front() + "\""))
-                return;
-            if(!executeCmd(cmd + "sleep 1"))
-                return;
+            // enter commands into tab
+            for(vector<string>::iterator it = commands.begin(); it != commands.end(); it++) {
+                std::string pushCmd = *it;
+                bool doReturn = filterCmdReturn(pushCmd);
+                ROS_INFO("Pushing command: \"%s\"", pushCmd.c_str());
+                if(!executeCmd(cmd + "type --delay 1 --clearmodifiers \"" + pushCmd.c_str() + "\""))
+                    return;
+                if(doReturn)
+                    executeCmd(cmd + "key Return"); // this would be OK to fail.
+                if(!executeCmd(cmd + "sleep " + toString(g_params.sleepCommand)))
+                    return;
+            }
+            // switch window active
             cmd = "wmctrl ";
             if(!executeCmd(cmd + "-i -a " + wid))
                 return;
@@ -224,6 +276,7 @@ int main(int argc, char** argv)
             return 1;
         }
         printf("%s\n", wid.c_str());
+        g_params.load();
     }
 
     for(vector<ProgramEntry>::iterator it = programs.begin(); it != programs.end(); it++) {
