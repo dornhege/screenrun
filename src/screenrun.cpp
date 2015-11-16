@@ -190,7 +190,7 @@ bool load()
         pe.name = (string)xmlRpc[i]["name"];
         XmlRpc::XmlRpcValue cmds = xmlRpc[i]["commands"];
         if(cmds.getType() != XmlRpc::XmlRpcValue::TypeArray) {
-            ROS_FATAL("commands for %s is not a list", pe.name.c_str());
+            ROS_FATAL("commands for %s is not a list (type %d)", pe.name.c_str(), cmds.getType());
             return false;
         }
         for(int j = 0; j < cmds.size(); j++) {
